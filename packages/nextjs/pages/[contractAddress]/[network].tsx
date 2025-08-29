@@ -54,6 +54,7 @@ const ContractDetailPage = ({ addressFromUrl, chainIdFromUrl }: ServerSideProps)
   const [isUseLocalAbi, setIsUseLocalAbi] = useState(false);
   const [localContractData, setLocalContractData] = useState<ContractData | null>(null);
   const [decompiledAbi, setDecompiledAbi] = useState<Abi | null>(null);
+  const [autoLoadedAbi, setAutoLoadedAbi] = useState(false);
 
   const { chainId, setImplementationAddress, contractAbi, chains, addChain, setTargetNetwork } = useGlobalState(
     state => ({
@@ -114,6 +115,43 @@ const ContractDetailPage = ({ addressFromUrl, chainIdFromUrl }: ServerSideProps)
       setImplementationAddress(implementationAddress);
     }
   }, [network, implementationAddress, chains, setTargetNetwork, setImplementationAddress]);
+
+  // Auto-load ABI from URL parameters
+  useEffect(() => {
+    if (!autoLoadedAbi && router.isReady) {
+      // Check for ABI in query parameters
+      const abiParam = router.query.abi as string;
+      if (abiParam) {
+        try {
+          // Try to parse the ABI directly
+          const parsedAbi = JSON.parse(decodeURIComponent(abiParam));
+          setLocalContractData({ abi: parsedAbi as Abi, address: contractAddress });
+          setIsUseLocalAbi(true);
+          setAutoLoadedAbi(true);
+          notification.success("ABI automatically loaded from URL");
+        } catch (e) {
+          console.error("Failed to parse ABI from URL", e);
+        }
+      }
+
+      // Check for base64 encoded data in hash
+      const hash = window.location.hash;
+      if (hash.startsWith("#data=")) {
+        try {
+          const encodedData = hash.substring(6);
+          const decodedData = JSON.parse(atob(encodedData));
+          if (decodedData.abi && decodedData.autoLoad) {
+            setLocalContractData({ abi: decodedData.abi as Abi, address: contractAddress });
+            setIsUseLocalAbi(true);
+            setAutoLoadedAbi(true);
+            notification.success("ABI automatically loaded");
+          }
+        } catch (e) {
+          console.error("Failed to parse base64 data from hash", e);
+        }
+      }
+    }
+  }, [router.isReady, router.query, contractAddress, autoLoadedAbi]);
 
   const handleUserProvidedAbi = () => {
     try {
